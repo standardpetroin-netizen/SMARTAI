@@ -1,5 +1,6 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import { 
   getDb, 
@@ -2360,10 +2361,11 @@ app.post('/api/sql/query', async (req: Request, res: Response) => {
 /* =========================================================================
    9. Static Files & Vite Dev Middleware Mounting
    ========================================================================= */
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.resolve(__dirname, 'dist')));
+const distDir = path.resolve(__dirname, 'dist');
+if (fs.existsSync(path.join(distDir, 'index.html'))) {
+  app.use(express.static(distDir));
   app.get('*', (_req: Request, res: Response) => {
-    res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
+    res.sendFile(path.join(distDir, 'index.html'));
   });
 } else {
   // Mount Vite middleware in development

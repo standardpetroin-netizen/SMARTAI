@@ -1,6 +1,7 @@
 // server.ts
 import express from "express";
 import path2 from "path";
+import fs2 from "fs";
 import { fileURLToPath } from "url";
 
 // src/server/db.ts
@@ -3229,10 +3230,11 @@ app.post("/api/sql/query", async (req, res) => {
     res.status(400).json({ error: String(err) });
   }
 });
-if (process.env.NODE_ENV === "production") {
-  app.use(express.static(path2.resolve(__dirname, "dist")));
+var distDir = path2.resolve(__dirname, "dist");
+if (fs2.existsSync(path2.join(distDir, "index.html"))) {
+  app.use(express.static(distDir));
   app.get("*", (_req, res) => {
-    res.sendFile(path2.resolve(__dirname, "dist", "index.html"));
+    res.sendFile(path2.join(distDir, "index.html"));
   });
 } else {
   const { createServer: createViteServer } = await import("vite");
