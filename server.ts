@@ -17,8 +17,14 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
-// Initialize SQL DB on boot
-await getDb();
+// Initialize SQL DB on boot. A database problem must not stop the process,
+// otherwise the reverse proxy returns 503 for the whole site.
+try {
+  await getDb();
+  console.log('[smartaisociety] Database ready');
+} catch (err) {
+  console.error('[smartaisociety] Database init failed, starting in degraded mode:', err);
+}
 
 /* =========================================================================
    1. Health & Database Diagnostic APIs
@@ -2377,8 +2383,20 @@ if (fs.existsSync(path.join(distDir, 'index.html'))) {
   app.use(vite.middlewares);
 }
 
-app.listen(PORT, () => {
-  console.log(`[smartaisociety] Full-stack Server listening on http://localhost:${PORT}`);
-  console.log(`[smartaisociety] Relational SQL database initialized and synced.`);
-  console.log(`[smartaisociety] Ready for Hostinger VPS KVM2 deployment.`);
+const server = app.listen(Number(PORT), '0.0.0.0', () => {
+  console.log(`[smartaisociety] Full-stack Server listening on 0.0.0.0:${PORT}`);
+  console.log(`[smartaisociety] NODE_ENV=${process.env.NODE_ENV ?? 'undefined'}`);
+  console.log(`[smartaisociety] Serving ${distDir}`);
 });
+
+server.on('error', (err) => {
+  console.error('[smartaisociety] Server error:', err);
+  process.exit(1);
+});
+
+for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+  process.on(signal, () => {
+    console.log(`[smartaisociety] Received ${signal}, shutting down`);
+    server.close(() => process.exit(0));
+  });
+}

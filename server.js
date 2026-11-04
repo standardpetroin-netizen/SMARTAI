@@ -1127,7 +1127,12 @@ var __dirname = path2.dirname(__filename);
 var app = express();
 var PORT = process.env.PORT || 3e3;
 app.use(express.json());
-await getDb();
+try {
+  await getDb();
+  console.log("[smartaisociety] Database ready");
+} catch (err) {
+  console.error("[smartaisociety] Database init failed, starting in degraded mode:", err);
+}
 app.get("/api/health", async (_req, res) => {
   try {
     const tableCounts = await querySql(`
@@ -3244,8 +3249,18 @@ if (fs2.existsSync(path2.join(distDir, "index.html"))) {
   });
   app.use(vite.middlewares);
 }
-app.listen(PORT, () => {
-  console.log(`[smartaisociety] Full-stack Server listening on http://localhost:${PORT}`);
-  console.log(`[smartaisociety] Relational SQL database initialized and synced.`);
-  console.log(`[smartaisociety] Ready for Hostinger VPS KVM2 deployment.`);
+var server = app.listen(Number(PORT), "0.0.0.0", () => {
+  console.log(`[smartaisociety] Full-stack Server listening on 0.0.0.0:${PORT}`);
+  console.log(`[smartaisociety] NODE_ENV=${process.env.NODE_ENV ?? "undefined"}`);
+  console.log(`[smartaisociety] Serving ${distDir}`);
 });
+server.on("error", (err) => {
+  console.error("[smartaisociety] Server error:", err);
+  process.exit(1);
+});
+for (const signal of ["SIGTERM", "SIGINT"]) {
+  process.on(signal, () => {
+    console.log(`[smartaisociety] Received ${signal}, shutting down`);
+    server.close(() => process.exit(0));
+  });
+}
