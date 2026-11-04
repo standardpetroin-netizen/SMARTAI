@@ -1,0 +1,6 @@
+{
+  "name": "smartaisociety - AI & Autonomous Smart Living Platform",
+  "description": "Multi-tenant operating system for residential welfare associations, high-rises, and gated townships with automated society provisioning, guard patrols, waste tracking, and white-labeling.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
