@@ -1,25 +1,47 @@
+var __create = Object.create;
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
+
 // server.ts
-import express from "express";
-import path2 from "path";
-import fs2 from "fs";
-import { fileURLToPath } from "url";
+var import_express = __toESM(require("express"));
+var import_path2 = __toESM(require("path"));
+var import_fs2 = __toESM(require("fs"));
 
 // src/server/db.ts
-import fs from "fs";
-import path from "path";
+var import_fs = __toESM(require("fs"));
+var import_path = __toESM(require("path"));
 var db = null;
-var DB_DIR = path.resolve(process.cwd(), "data");
-var DB_PATH = path.join(DB_DIR, "smartaisociety.sqlite");
+var DB_DIR = import_path.default.resolve(process.cwd(), "data");
+var DB_PATH = import_path.default.join(DB_DIR, "smartaisociety.sqlite");
 async function getDb() {
   if (db) return db;
-  if (!fs.existsSync(DB_DIR)) {
-    fs.mkdirSync(DB_DIR, { recursive: true });
+  if (!import_fs.default.existsSync(DB_DIR)) {
+    import_fs.default.mkdirSync(DB_DIR, { recursive: true });
   }
   const { default: initSqlJs } = await import("sql.js");
   const SQL = await initSqlJs();
-  if (fs.existsSync(DB_PATH)) {
+  if (import_fs.default.existsSync(DB_PATH)) {
     try {
-      const fileBuffer = fs.readFileSync(DB_PATH);
+      const fileBuffer = import_fs.default.readFileSync(DB_PATH);
       db = new SQL.Database(fileBuffer);
     } catch {
       db = new SQL.Database();
@@ -35,7 +57,7 @@ function saveDb(database) {
   try {
     const data = database.export();
     const buffer = Buffer.from(data);
-    fs.writeFileSync(DB_PATH, buffer);
+    import_fs.default.writeFileSync(DB_PATH, buffer);
   } catch (err) {
     console.error("Failed to persist SQLite DB:", err);
   }
@@ -1122,16 +1144,17 @@ async function exportHostingerSqlDump() {
 }
 
 // server.ts
-var __filename = fileURLToPath(import.meta.url);
-var __dirname = path2.dirname(__filename);
-var app = express();
+var APP_DIR = typeof __dirname !== "undefined" ? __dirname : process.cwd();
+var app = (0, import_express.default)();
 var PORT = process.env.PORT || 3e3;
-app.use(express.json());
-try {
-  await getDb();
-  console.log("[smartaisociety] Database ready");
-} catch (err) {
-  console.error("[smartaisociety] Database init failed, starting in degraded mode:", err);
+app.use(import_express.default.json());
+async function initDatabase() {
+  try {
+    await getDb();
+    console.log("[smartaisociety] Database ready");
+  } catch (err) {
+    console.error("[smartaisociety] Database init failed, starting in degraded mode:", err);
+  }
 }
 app.get("/api/health", async (_req, res) => {
   try {
@@ -3238,33 +3261,36 @@ app.post("/api/sql/query", async (req, res) => {
     res.status(400).json({ error: String(err) });
   }
 });
-var distDir = path2.resolve(__dirname, "dist");
-var distIndex = path2.join(distDir, "index.html");
+var distDir = import_path2.default.resolve(APP_DIR, "dist");
+var distIndex = import_path2.default.join(distDir, "index.html");
 var isProduction = process.env.NODE_ENV === "production";
-if (fs2.existsSync(distIndex)) {
-  app.use(express.static(distDir));
+if (import_fs2.default.existsSync(distIndex)) {
+  app.use(import_express.default.static(distDir));
   app.get("*", (_req, res) => {
     res.sendFile(distIndex);
   });
   console.log("[smartaisociety] Serving static build from " + distDir);
 } else if (!isProduction) {
-  try {
-    const { createServer: createViteServer } = await import("vite");
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa"
-    });
-    app.use(vite.middlewares);
-    console.log("[smartaisociety] Vite dev middleware mounted");
-  } catch (err) {
-    console.error("[smartaisociety] Vite dev middleware unavailable:", err);
-  }
+  void (async () => {
+    try {
+      const { createServer: createViteServer } = await import("vite");
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa"
+      });
+      app.use(vite.middlewares);
+      console.log("[smartaisociety] Vite dev middleware mounted");
+    } catch (err) {
+      console.error("[smartaisociety] Vite dev middleware unavailable:", err);
+    }
+  })();
 } else {
   app.get("*", (_req, res) => {
     res.status(200).type("html").send('<!doctype html><meta charset="utf-8"><title>SmartAI Society</title><body style="font-family:system-ui;padding:3rem;max-width:40rem;margin:auto"><h1>SmartAI Society</h1><p>The application build is missing. Run <code>npm run build</code> so the <code>dist/</code> folder is generated, then restart the app.</p>');
   });
 }
 var portValue = String(PORT).startsWith("/") ? String(PORT) : Number(PORT);
+void initDatabase();
 var server = app.listen(portValue, String(PORT).startsWith("/") ? void 0 : "0.0.0.0", () => {
   console.log(`[smartaisociety] Full-stack Server listening on 0.0.0.0:${PORT}`);
   console.log(`[smartaisociety] NODE_ENV=${process.env.NODE_ENV ?? "undefined"}`);

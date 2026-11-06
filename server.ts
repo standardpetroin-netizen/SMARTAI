@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
+
 import { 
   getDb, 
   querySql, 
@@ -9,21 +9,26 @@ import {
   exportHostingerSqlDump 
 } from './src/server/db.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Works whether the entry is loaded as CommonJS (Hostinger/CloudLinux passes it
+// through require) or as ESM (tsx in development). import.meta is avoided so the
+// build stays require-safe.
+const APP_DIR =
+  typeof __dirname !== 'undefined' ? __dirname : process.cwd();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 
-// Initialize SQL DB on boot. A database problem must not stop the process,
-// otherwise the reverse proxy returns 503 for the whole site.
-try {
-  await getDb();
-  console.log('[smartaisociety] Database ready');
-} catch (err) {
-  console.error('[smartaisociety] Database init failed, starting in degraded mode:', err);
+// Database starts warming up in the background. Requests await the same
+// promise through querySql/executeSql, so nothing is served before it is ready.
+async function initDatabase(): Promise<void> {
+  try {
+    await getDb();
+    console.log('[smartaisociety] Database ready');
+  } catch (err) {
+    console.error('[smartaisociety] Database init failed, starting in degraded mode:', err);
+  }
 }
 
 /* =========================================================================
@@ -2371,7 +2376,7 @@ app.post('/api/sql/query', async (req: Request, res: Response) => {
 /* =========================================================================
    9. Static Files & Vite Dev Middleware Mounting
    ========================================================================= */
-const distDir = path.resolve(__dirname, 'dist');
+const distDir = path.resolve(APP_DIR, 'dist');
 const distIndex = path.join(distDir, 'index.html');
 const isProduction = process.env.NODE_ENV === 'production';
 
@@ -2382,19 +2387,21 @@ if (fs.existsSync(distIndex)) {
   });
   console.log('[smartaisociety] Serving static build from ' + distDir);
 } else if (!isProduction) {
-  // Development: mount the Vite dev server. Never required in production,
-  // where a missing build must not take the whole process down.
-  try {
-    const { createServer: createViteServer } = await import('vite');
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-    console.log('[smartaisociety] Vite dev middleware mounted');
-  } catch (err) {
-    console.error('[smartaisociety] Vite dev middleware unavailable:', err);
-  }
+  // Development only: mount the Vite dev server. Production never imports Vite,
+  // so runtime never needs build-time dependencies.
+  void (async () => {
+    try {
+      const { createServer: createViteServer } = await import('vite');
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: 'spa',
+      });
+      app.use(vite.middlewares);
+      console.log('[smartaisociety] Vite dev middleware mounted');
+    } catch (err) {
+      console.error('[smartaisociety] Vite dev middleware unavailable:', err);
+    }
+  })();
 } else {
   app.get('*', (_req: Request, res: Response) => {
     res
@@ -2408,6 +2415,8 @@ if (fs.existsSync(distIndex)) {
 }
 
 const portValue: string | number = String(PORT).startsWith('/') ? String(PORT) : Number(PORT);
+void initDatabase();
+
 const server = app.listen(portValue as any, String(PORT).startsWith('/') ? undefined : '0.0.0.0', () => {
   console.log(`[smartaisociety] Full-stack Server listening on 0.0.0.0:${PORT}`);
   console.log(`[smartaisociety] NODE_ENV=${process.env.NODE_ENV ?? 'undefined'}`);
