@@ -1157,6 +1157,9 @@ app.get("/api/health", async (_req, res) => {
     res.status(500).json({ error: String(err) });
   }
 });
+app.get("/api/ping", (_req, res) => {
+  res.json({ ok: true, uptime: process.uptime(), node: process.version });
+});
 app.post("/api/auth/login", async (req, res) => {
   try {
     const { role, identifier, password, gateId } = req.body;
@@ -3236,20 +3239,33 @@ app.post("/api/sql/query", async (req, res) => {
   }
 });
 var distDir = path2.resolve(__dirname, "dist");
-if (fs2.existsSync(path2.join(distDir, "index.html"))) {
+var distIndex = path2.join(distDir, "index.html");
+var isProduction = process.env.NODE_ENV === "production";
+if (fs2.existsSync(distIndex)) {
   app.use(express.static(distDir));
   app.get("*", (_req, res) => {
-    res.sendFile(path2.join(distDir, "index.html"));
+    res.sendFile(distIndex);
   });
+  console.log("[smartaisociety] Serving static build from " + distDir);
+} else if (!isProduction) {
+  try {
+    const { createServer: createViteServer } = await import("vite");
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: "spa"
+    });
+    app.use(vite.middlewares);
+    console.log("[smartaisociety] Vite dev middleware mounted");
+  } catch (err) {
+    console.error("[smartaisociety] Vite dev middleware unavailable:", err);
+  }
 } else {
-  const { createServer: createViteServer } = await import("vite");
-  const vite = await createViteServer({
-    server: { middlewareMode: true },
-    appType: "spa"
+  app.get("*", (_req, res) => {
+    res.status(200).type("html").send('<!doctype html><meta charset="utf-8"><title>SmartAI Society</title><body style="font-family:system-ui;padding:3rem;max-width:40rem;margin:auto"><h1>SmartAI Society</h1><p>The application build is missing. Run <code>npm run build</code> so the <code>dist/</code> folder is generated, then restart the app.</p>');
   });
-  app.use(vite.middlewares);
 }
-var server = app.listen(Number(PORT), "0.0.0.0", () => {
+var portValue = String(PORT).startsWith("/") ? String(PORT) : Number(PORT);
+var server = app.listen(portValue, String(PORT).startsWith("/") ? void 0 : "0.0.0.0", () => {
   console.log(`[smartaisociety] Full-stack Server listening on 0.0.0.0:${PORT}`);
   console.log(`[smartaisociety] NODE_ENV=${process.env.NODE_ENV ?? "undefined"}`);
   console.log(`[smartaisociety] Serving ${distDir}`);

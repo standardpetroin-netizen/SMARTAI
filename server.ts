@@ -54,6 +54,10 @@ app.get('/api/health', async (_req: Request, res: Response) => {
   }
 });
 
+app.get('/api/ping', (_req: Request, res: Response) => {
+  res.json({ ok: true, uptime: process.uptime(), node: process.version });
+});
+
 /* =========================================================================
    1.5 Role-Based Authentication & Session APIs
    ========================================================================= */
@@ -2368,22 +2372,43 @@ app.post('/api/sql/query', async (req: Request, res: Response) => {
    9. Static Files & Vite Dev Middleware Mounting
    ========================================================================= */
 const distDir = path.resolve(__dirname, 'dist');
-if (fs.existsSync(path.join(distDir, 'index.html'))) {
+const distIndex = path.join(distDir, 'index.html');
+const isProduction = process.env.NODE_ENV === 'production';
+
+if (fs.existsSync(distIndex)) {
   app.use(express.static(distDir));
   app.get('*', (_req: Request, res: Response) => {
-    res.sendFile(path.join(distDir, 'index.html'));
+    res.sendFile(distIndex);
   });
+  console.log('[smartaisociety] Serving static build from ' + distDir);
+} else if (!isProduction) {
+  // Development: mount the Vite dev server. Never required in production,
+  // where a missing build must not take the whole process down.
+  try {
+    const { createServer: createViteServer } = await import('vite');
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+    console.log('[smartaisociety] Vite dev middleware mounted');
+  } catch (err) {
+    console.error('[smartaisociety] Vite dev middleware unavailable:', err);
+  }
 } else {
-  // Mount Vite middleware in development
-  const { createServer: createViteServer } = await import('vite');
-  const vite = await createViteServer({
-    server: { middlewareMode: true },
-    appType: 'spa',
+  app.get('*', (_req: Request, res: Response) => {
+    res
+      .status(200)
+      .type('html')
+      .send('<!doctype html><meta charset="utf-8"><title>SmartAI Society</title>' +
+        '<body style="font-family:system-ui;padding:3rem;max-width:40rem;margin:auto">' +
+        '<h1>SmartAI Society</h1><p>The application build is missing. Run <code>npm run build</code> ' +
+        'so the <code>dist/</code> folder is generated, then restart the app.</p>');
   });
-  app.use(vite.middlewares);
 }
 
-const server = app.listen(Number(PORT), '0.0.0.0', () => {
+const portValue: string | number = String(PORT).startsWith('/') ? String(PORT) : Number(PORT);
+const server = app.listen(portValue as any, String(PORT).startsWith('/') ? undefined : '0.0.0.0', () => {
   console.log(`[smartaisociety] Full-stack Server listening on 0.0.0.0:${PORT}`);
   console.log(`[smartaisociety] NODE_ENV=${process.env.NODE_ENV ?? 'undefined'}`);
   console.log(`[smartaisociety] Serving ${distDir}`);
