@@ -1,4 +1,4 @@
-import initSqlJs, { Database } from 'sql.js';
+import type { Database } from 'sql.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -17,6 +17,9 @@ export async function getDb(): Promise<Database> {
     fs.mkdirSync(DB_DIR, { recursive: true });
   }
 
+  // Load the WASM engine lazily so a problem with it can never crash the
+  // whole web process at import time.
+  const { default: initSqlJs } = await import('sql.js');
   const SQL = await initSqlJs();
 
   if (fs.existsSync(DB_PATH)) {

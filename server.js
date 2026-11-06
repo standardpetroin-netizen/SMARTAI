@@ -5,7 +5,6 @@ import fs2 from "fs";
 import { fileURLToPath } from "url";
 
 // src/server/db.ts
-import initSqlJs from "sql.js";
 import fs from "fs";
 import path from "path";
 var db = null;
@@ -16,6 +15,7 @@ async function getDb() {
   if (!fs.existsSync(DB_DIR)) {
     fs.mkdirSync(DB_DIR, { recursive: true });
   }
+  const { default: initSqlJs } = await import("sql.js");
   const SQL = await initSqlJs();
   if (fs.existsSync(DB_PATH)) {
     try {
